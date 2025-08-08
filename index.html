@@ -2,40 +2,38 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Jednoduchá hra - Kocour a krysa</title>
+<title>Kocour a Krysa - jednoduchá hra</title>
 <style>
   body {
-    margin: 0; padding: 0; background: #0b3d0b; display: flex; justify-content: center; align-items: center; height: 100vh;
-    font-family: Arial, sans-serif; color: white; user-select: none;
+    background: #0b3d0b;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    user-select: none;
   }
-  canvas {
+  #game {
     background: #178117;
-    border-radius: 12px;
-    box-shadow: 0 0 10px #044004;
+    display: block;
+    margin: 20px auto;
+    border-radius: 10px;
   }
-  #startmsg {
-    position: absolute; top: 20px; font-size: 20px; font-weight: bold;
-    background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 8px;
-    user-select:none;
-  }
-  #scoreboard {
-    position: absolute; top: 60px; font-size: 18px;
-    background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 8px;
+  #startmsg, #score {
+    font-size: 24px;
+    margin-top: 20px;
   }
 </style>
 </head>
 <body>
+
 <div id="startmsg">Stiskni ENTER pro start hry</div>
-<div id="scoreboard">Skóre: 0</div>
 <canvas id="game" width="600" height="400"></canvas>
+<div id="score">Skóre: 0</div>
 
 <script>
-(() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const startMsg = document.getElementById('startmsg');
-  const scoreBoard = document.getElementById('scoreboard');
+  const scoreDiv = document.getElementById('score');
 
   const cols = 30;
   const rows = 20;
@@ -53,17 +51,20 @@
   }
 
   function draw() {
-    // pozadí
-    ctx.fillStyle = '#0b3d0b';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // nakreslíme krysu (červená)
+    // Krysa - červená
     drawCell(krysa.x, krysa.y, 'red');
 
-    // nakreslíme kocoura (bílo-červený čtverec)
+    // Kocour - bílý s červeným středem
     drawCell(kocour.x, kocour.y, 'white');
     ctx.fillStyle = 'red';
     ctx.fillRect(kocour.x * cellSize + 5, kocour.y * cellSize + 5, cellSize - 10, cellSize - 10);
+  }
+
+  function moveKrysa() {
+    krysa.x = Math.floor(Math.random() * cols);
+    krysa.y = Math.floor(Math.random() * rows);
   }
 
   function update() {
@@ -72,41 +73,33 @@
     kocour.x += kocour.dx;
     kocour.y += kocour.dy;
 
-    // ohraničení - hra končí při nárazu do zdi
+    // Kontrola okrajů
     if (kocour.x < 0 || kocour.x >= cols || kocour.y < 0 || kocour.y >= rows) {
-      resetGame();
+      alert('Konec hry! Tvoje skóre: ' + score);
+      running = false;
+      startMsg.style.display = 'block';
+      score = 0;
+      scoreDiv.textContent = 'Skóre: 0';
+      kocour = { x: 10, y: 10, dx: 0, dy: 0 };
+      moveKrysa();
+      draw();
       return;
     }
 
-    // když kocour chytí krysu
+    // Když kocour chytí krysu
     if (kocour.x === krysa.x && kocour.y === krysa.y) {
       score++;
-      scoreBoard.textContent = 'Skóre: ' + score;
+      scoreDiv.textContent = 'Skóre: ' + score;
       moveKrysa();
     }
   }
 
-  function moveKrysa() {
-    krysa.x = Math.floor(Math.random() * cols);
-    krysa.y = Math.floor(Math.random() * rows);
-  }
-
-  function resetGame() {
-    alert('Konec hry! Tvoje skóre: ' + score);
-    running = false;
-    score = 0;
-    scoreBoard.textContent = 'Skóre: 0';
-    kocour = { x: 10, y: 10, dx: 0, dy: 0 };
-    moveKrysa();
-    startMsg.style.display = 'block';
-  }
-
   function gameLoop() {
-    if(running){
+    if (running) {
       update();
       draw();
     }
-    requestAnimationFrame(gameLoop);
+    setTimeout(gameLoop, 100); // 10 FPS - hýbe se plynule
   }
 
   document.addEventListener('keydown', e => {
@@ -117,38 +110,26 @@
     }
     if (!running) return;
 
-    switch(e.key) {
-      case 'ArrowLeft':
-        if(kocour.dx !== 1){
-          kocour.dx = -1;
-          kocour.dy = 0;
-        }
-        break;
-      case 'ArrowRight':
-        if(kocour.dx !== -1){
-          kocour.dx = 1;
-          kocour.dy = 0;
-        }
-        break;
-      case 'ArrowUp':
-        if(kocour.dy !== 1){
-          kocour.dx = 0;
-          kocour.dy = -1;
-        }
-        break;
-      case 'ArrowDown':
-        if(kocour.dy !== -1){
-          kocour.dx = 0;
-          kocour.dy = 1;
-        }
-        break;
+    if (e.key === 'ArrowLeft' && kocour.dx !== 1) {
+      kocour.dx = -1;
+      kocour.dy = 0;
+    } else if (e.key === 'ArrowRight' && kocour.dx !== -1) {
+      kocour.dx = 1;
+      kocour.dy = 0;
+    } else if (e.key === 'ArrowUp' && kocour.dy !== 1) {
+      kocour.dx = 0;
+      kocour.dy = -1;
+    } else if (e.key === 'ArrowDown' && kocour.dy !== -1) {
+      kocour.dx = 0;
+      kocour.dy = 1;
     }
   });
 
+  // Start
   moveKrysa();
   draw();
   gameLoop();
-})();
 </script>
+
 </body>
 </html>
