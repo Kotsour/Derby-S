@@ -3,149 +3,141 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Derby pražských S</title>
+<title>Jednoduchá hra - Kocour a krysa</title>
 <style>
-  html, body {
-    margin:0; padding:0; height:100%; background:#0B3D0B; display:flex; justify-content:center; align-items:center;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    user-select:none;
+  body {
+    margin: 0; padding: 0; background: #0b3d0b; display: flex; justify-content: center; align-items: center; height: 100vh;
+    font-family: Arial, sans-serif; color: white; user-select: none;
   }
   canvas {
-    background: #0b3d0b; /* tmavý trávník základ */
-    display: block;
-    box-shadow: 0 0 15px #044004;
+    background: #178117;
     border-radius: 12px;
-  }
-  #scoreboard {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    color: #eee;
-    font-weight: 700;
-    font-size: 18px;
-    background: rgba(0,0,0,0.3);
-    padding: 8px 14px;
-    border-radius: 10px;
-    user-select:none;
-  }
-  #highscoreboard {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    color: #eee;
-    font-weight: 600;
-    font-size: 16px;
-    background: rgba(0,0,0,0.2);
-    padding: 6px 12px;
-    border-radius: 10px;
-    user-select:none;
+    box-shadow: 0 0 10px #044004;
   }
   #startmsg {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #eee;
-    font-size: 20px;
-    background: rgba(0,0,0,0.4);
-    padding: 10px 18px;
-    border-radius: 12px;
-    font-weight: 600;
+    position: absolute; top: 20px; font-size: 20px; font-weight: bold;
+    background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 8px;
     user-select:none;
+  }
+  #scoreboard {
+    position: absolute; top: 60px; font-size: 18px;
+    background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 8px;
   }
 </style>
 </head>
 <body>
-<canvas id="game" width="600" height="400"></canvas>
-<div id="scoreboard">Rudých krys zabito: 0</div>
-<div id="highscoreboard">Nejvyšší skóre: 0</div>
 <div id="startmsg">Stiskni ENTER pro start hry</div>
+<div id="scoreboard">Skóre: 0</div>
+<canvas id="game" width="600" height="400"></canvas>
 
 <script>
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const startMsg = document.getElementById('startmsg');
+  const scoreBoard = document.getElementById('scoreboard');
 
-  // Hrací pole velikost
   const cols = 30;
   const rows = 20;
   const cellSize = 20;
 
-  // Stav hry
-  let score = 0;
-  let highScore = localStorage.getItem('derbyHighscore') || 0;
-  highScore = Number(highScore);
-
-  // Kocour - pozice a pohyb
-  let kocour = {
-    x: 10,
-    y: 10,
-    dx: 0,
-    dy: 0,
-    cells: [],
-    maxCells: 4,
-  };
-
-  // Krysa
-  let krysa = {
-    x: 15,
-    y: 10,
-  };
-
-  // Zvuky (pláč dítěte, jednoduchý)
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-  function playCrySound(){
-    let o = audioContext.createOscillator();
-    let g = audioContext.createGain();
-    o.type = 'triangle';
-    o.frequency.setValueAtTime(800, audioContext.currentTime);
-    o.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.3);
-    g.gain.setValueAtTime(0.2, audioContext.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
-    o.connect(g);
-    g.connect(audioContext.destination);
-    o.start();
-    o.stop(audioContext.currentTime + 0.3);
-  }
-
-  // Náhodné číslo v rozmezí
-  function getRandomInt(min, max){
-    return Math.floor(Math.random() * (max - min)) + min;
-  }
-
-  // Stav hry: čeká na start (Enter)
   let running = false;
+  let score = 0;
 
-  // Ovládání
-  document.addEventListener('keydown', e => {
-    if(!running){
-      if(e.key === 'Enter'){
-        startGame();
-      }
+  let kocour = { x: 10, y: 10, dx: 0, dy: 0 };
+  let krysa = { x: 15, y: 10 };
+
+  function drawCell(x, y, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x * cellSize, y * cellSize, cellSize - 1, cellSize - 1);
+  }
+
+  function draw() {
+    // pozadí
+    ctx.fillStyle = '#0b3d0b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // nakreslíme krysu (červená)
+    drawCell(krysa.x, krysa.y, 'red');
+
+    // nakreslíme kocoura (bílo-červený čtverec)
+    drawCell(kocour.x, kocour.y, 'white');
+    ctx.fillStyle = 'red';
+    ctx.fillRect(kocour.x * cellSize + 5, kocour.y * cellSize + 5, cellSize - 10, cellSize - 10);
+  }
+
+  function update() {
+    if (!running) return;
+
+    kocour.x += kocour.dx;
+    kocour.y += kocour.dy;
+
+    // ohraničení - hra končí při nárazu do zdi
+    if (kocour.x < 0 || kocour.x >= cols || kocour.y < 0 || kocour.y >= rows) {
+      resetGame();
       return;
     }
-    switch(e.key){
+
+    // když kocour chytí krysu
+    if (kocour.x === krysa.x && kocour.y === krysa.y) {
+      score++;
+      scoreBoard.textContent = 'Skóre: ' + score;
+      moveKrysa();
+    }
+  }
+
+  function moveKrysa() {
+    krysa.x = Math.floor(Math.random() * cols);
+    krysa.y = Math.floor(Math.random() * rows);
+  }
+
+  function resetGame() {
+    alert('Konec hry! Tvoje skóre: ' + score);
+    running = false;
+    score = 0;
+    scoreBoard.textContent = 'Skóre: 0';
+    kocour = { x: 10, y: 10, dx: 0, dy: 0 };
+    moveKrysa();
+    startMsg.style.display = 'block';
+  }
+
+  function gameLoop() {
+    if(running){
+      update();
+      draw();
+    }
+    requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (!running && e.key === 'Enter') {
+      running = true;
+      startMsg.style.display = 'none';
+      return;
+    }
+    if (!running) return;
+
+    switch(e.key) {
       case 'ArrowLeft':
-        if(kocour.dx === 0){
+        if(kocour.dx !== 1){
           kocour.dx = -1;
           kocour.dy = 0;
         }
         break;
-      case 'ArrowUp':
-        if(kocour.dy === 0){
-          kocour.dx = 0;
-          kocour.dy = -1;
-        }
-        break;
       case 'ArrowRight':
-        if(kocour.dx === 0){
+        if(kocour.dx !== -1){
           kocour.dx = 1;
           kocour.dy = 0;
         }
         break;
+      case 'ArrowUp':
+        if(kocour.dy !== 1){
+          kocour.dx = 0;
+          kocour.dy = -1;
+        }
+        break;
       case 'ArrowDown':
-        if(kocour.dy === 0){
+        if(kocour.dy !== -1){
           kocour.dx = 0;
           kocour.dy = 1;
         }
@@ -153,92 +145,10 @@
     }
   });
 
-  function resetGame(){
-    alert('Konec hry! Tvoje skóre: ' + score);
-    if(score > highScore){
-      highScore = score;
-      localStorage.setItem('derbyHighscore', highScore);
-      document.getElementById('highscoreboard').textContent = 'Nejvyšší skóre: ' + highScore;
-    }
-    score = 0;
-    document.getElementById('scoreboard').textContent = 'Rudých krys zabito: ' + score;
-    // Reset kocoura
-    kocour.x = 10;
-    kocour.y = 10;
-    kocour.dx = 0;
-    kocour.dy = 0;
-    kocour.cells = [];
-    kocour.maxCells = 4;
-    // Reset krysy
-    krysa.x = getRandomInt(0, cols);
-    krysa.y = getRandomInt(0, rows);
-    running = false;
-    document.getElementById('startmsg').style.display = 'block';
-  }
-
-  function startGame(){
-    running = true;
-    document.getElementById('startmsg').style.display = 'none';
-  }
-
-  // Kreslíme trávník s půlící čarou a středovým kruhem
-  function drawField(){
-    // trávník - světlé a tmavé pruhy
-    const stripeHeight = cellSize;
-    for(let y=0; y < rows; y++){
-      ctx.fillStyle = y % 2 === 0 ? '#178117' : '#1d8f1d';
-      ctx.fillRect(0, y*cellSize, canvas.width, cellSize);
-    }
-    // půlící čára
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    const midX = canvas.width/2;
-    ctx.beginPath();
-    ctx.moveTo(midX, 0);
-    ctx.lineTo(midX, canvas.height);
-    ctx.stroke();
-
-    // středový kruh
-    const centerX = canvas.width/2;
-    const centerY = canvas.height/2;
-    const radius = cellSize * 3;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.stroke();
-
-    // středová tečka
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-  }
-
-  // Kreslíme kocoura - stylizovaný červeno-bílý dres, hlava s oušky a oči
-  function drawKocour(x, y){
-    const px = x * cellSize;
-    const py = y * cellSize;
-
-    // Tělo (dres)
-    ctx.fillStyle = '#d00000'; // červená
-    ctx.fillRect(px+3, py+3, cellSize-6, cellSize-6);
-    ctx.fillStyle = '#ffffff'; // bílé pruhy
-    ctx.fillRect(px+3, py+3, (cellSize-6)/3, cellSize-6);
-    ctx.fillRect(px+3 + 2*((cellSize-6)/3), py+3, (cellSize-6)/3, cellSize-6);
-
-    // Hlava
-    ctx.fillStyle = '#d00000';
-    ctx.beginPath();
-    ctx.ellipse(px + cellSize/2, py + cellSize/2 - 3, cellSize/3, cellSize/3.5, 0, 0, 2 * Math.PI);
-    ctx.fill();
-
-    // Uši
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.moveTo(px + cellSize/2 - 8, py + cellSize/2 - 15);
-    ctx.lineTo(px + cellSize/2 - 3, py + cellSize/2 - 25);
-    ctx.lineTo(px + cellSize/2 - 1, py + cellSize/2 - 13);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(px + cellSize/2 + 8, py + cellSize/2 - 15);
-    ctx.lineTo(px + cell
+  moveKrysa();
+  draw();
+  gameLoop();
+})();
+</script>
+</body>
+</html>
